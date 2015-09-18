@@ -29,6 +29,11 @@
             android:name="br.com.thinkti.android.filechooser.FileChooser"
             android:label="@string/file_choose_app" >
         </activity>
+
+        <service
+            android:name="CopyService"
+            android:exported="false" />
+        
     </application>
 
 </manifest>

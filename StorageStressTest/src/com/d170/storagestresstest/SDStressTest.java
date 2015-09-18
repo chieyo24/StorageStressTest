@@ -9,9 +9,15 @@ import java.io.OutputStream;
 
 import android.app.Activity;
 import android.app.ProgressDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.support.v4.content.LocalBroadcastManager;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -31,6 +37,7 @@ public class SDStressTest extends Activity {
 
     private ProgressDialog mProgressDialog;
     private Toast mToast;
+    private LocalBroadcastManager mLocalBroadcastManager;
 
     /**
      * show user a warning Toast message
@@ -53,17 +60,72 @@ public class SDStressTest extends Activity {
         mDestFileEdTt = (TextView) findViewById(R.id.destFileEdTt);
         mExecutionCountEdTt = (EditText) findViewById(R.id.executionCountEdTt);
         mStatusPgBr = (ProgressBar) findViewById(R.id.statusPgBr);
+        mStatusPgBr.setMax(100);
 
         mToast = Toast.makeText(this, "", Toast.LENGTH_SHORT);
+        createProgressDialog("");
+
+        mLocalBroadcastManager = LocalBroadcastManager.getInstance(this);
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Constants.ACTION_COPY_STATUS_REPORT);
+        filter.addAction(Constants.ACTION_COPY_FINISH_REPORT);
+        BroadcastReceiver receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                long start = System.nanoTime();
+
+                if (intent.getAction().equals(Constants.ACTION_COPY_STATUS_REPORT)) {
+                    int fileIndex = intent.getIntExtra(Constants.STATUS_COPY_INDEX, 1);
+                    int progress = intent.getIntExtra(Constants.STATUS_COPY_PROGRESS, 0);
+                    String speed = intent.getStringExtra(Constants.STATUS_COPY_SPEED);
+                    String avgSpeed = intent.getStringExtra(Constants.STATUS_COPY_AVGSPEED);
+
+                    // if (mProgressDialog == null) {
+                    // createProgressDialog("copy " + fileIndex + "-th \n" +
+                    // "Speed : " + speed + "(kb/s) Avg-Speed : "
+                    // + avgSpeed + "(kb/s)");
+                    // }
+                    mProgressDialog.setMessage("copy " + fileIndex + "-th \n" + "Speed : " + speed
+                            + "(kb/s) \n Avg-Speed : " + avgSpeed + "(kb/s)");
+                    mProgressDialog.setProgress(progress);
+
+                    if (!mProgressDialog.isShowing()) {
+                        mProgressDialog.show();
+                    }
+
+                    mStatusPgBr.setProgress(
+                            (fileIndex * 100) / Integer.parseInt(mExecutionCountEdTt.getText().toString()));
+
+                } else if (intent.getAction().equals(Constants.ACTION_COPY_FINISH_REPORT)) {
+                    if (mProgressDialog != null) {
+                        if (mProgressDialog.isShowing()) {
+                            try {
+                                mProgressDialog.dismiss();
+                            } catch (Exception e) {
+                                //doNotthing
+                            }
+                        }
+                    }
+                }
+//                Log.d("BroadcastUpdateCopyStatus", "((((( onReceive Cost "
+//                        + (double) ((System.nanoTime() - start) / 1000000000.0) + " second. )))))");
+            }
+        };
+        mLocalBroadcastManager.registerReceiver(receiver, filter);
+    }
+
+    private void createProgressDialog(String msg) {
+        if (mProgressDialog != null) {
+            mProgressDialog.dismiss();
+        }
 
         mProgressDialog = new ProgressDialog(SDStressTest.this);
         mProgressDialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-        // mProgressDialog.setTitle("Copy File ...");
-        mProgressDialog.setMessage("Transferred 0 bytes");
+        if (msg.length() > 0) {
+            mProgressDialog.setMessage(msg);
+        }
         mProgressDialog.setCancelable(false);
         mProgressDialog.setMax(100);
-        
-        mStatusPgBr.setMax(100);
     }
 
     @Override
@@ -89,9 +151,20 @@ public class SDStressTest extends Activity {
             showToast("Please Choose a file for copy Destination !");
             // }else if(mExecutionCountEdTt.getText()){
         } else {
-            CopyFileByChannelTask task = new CopyFileByChannelTask();
-            task.execute(srcFile, dstFile);
+            // CopyFileTask task = new CopyFileTask();
+            // task.execute(srcFile, dstFile);
+            CopyFileService(srcFile, dstFile);
+
         }
+    }
+
+    private void CopyFileService(File src, File dest) {
+        Intent mServiceIntent = new Intent(this, CopyService.class);
+        mServiceIntent.putExtra(Constants.INITIAL_SOURCE_FILE, src);
+        mServiceIntent.putExtra(Constants.INITIAL_DESTINATION_FILE, dest);
+        mServiceIntent.putExtra(Constants.INITIAL_COPY_COUNT,
+                Integer.parseInt(mExecutionCountEdTt.getText().toString()));
+        startService(mServiceIntent);
     }
 
     /**
@@ -136,48 +209,60 @@ public class SDStressTest extends Activity {
         }
     }
 
-    private class CopyFileByChannelTask extends AsyncTask<File, Long, Boolean> {
+    private class CopyFileTask extends AsyncTask<File, Integer, Boolean> {
 
         private float speed;
-        private long total;
-        private int progressStatus;
+        // private int progressStatus;
+        private int copyCount;
+        private int fileIndex;
 
         @Override
         protected void onPreExecute() {
+            copyCount = Integer.parseInt(mExecutionCountEdTt.getText().toString());
+
             mProgressDialog.setProgress(0);
             mProgressDialog.show();
             mStatusPgBr.setProgress(0);
         }
-        
+
         @Override
-        protected void onProgressUpdate(Long... values) {
-            if (mProgressDialog!=null) {
-                mProgressDialog.setProgress(progressStatus);
+        protected void onProgressUpdate(Integer... values) {
+
+            if (values[0] == 0) {
+                // createProgressDialog("Copy " + fileIndex + "-th File (Speed :
+                // " + String.format("%.2f", speed) +
+                // "; total :"+ copyCount + ")");
+                // mProgressDialog.setProgress(values[0]);
+                // mProgressDialog.show();
+
+                if (mStatusPgBr != null) {
+                    mStatusPgBr.setProgress((fileIndex * 100 / copyCount));
+                }
             }
-//             mProgressDialog.setMessage("Transferred " + total + "bytes.(" +String.format("%.2f", speed) + " kb/s)");
-            // long value = (long) values[0];
+            mProgressDialog.setProgress(values[0]);
+
+            // if (mProgressDialog != null) {
+            // mProgressDialog.setProgress(progressStatus);
+            // } else {
+            // mProgressDialog.setProgress(progressStatus);
+            // mProgressDialog.show();
+            // }
         }
 
         @Override
         protected Boolean doInBackground(File... files) {
             try {
-                int count = Integer.parseInt(mExecutionCountEdTt.getText().toString());
-                for (int i = 1; i < count + 1; i++) {
-//                     mProgressDialog.setMessage("Copy " + i + "-th File (total"+ count + ")");
-                    if (i % 2 == 1) {
+                for (fileIndex = 1; fileIndex < copyCount + 1; fileIndex++) {
+                    long start = System.nanoTime();
+                    if (fileIndex % 2 == 1) {
                         copyFile(files[0], files[1]);
                     } else {
                         copyFile(files[1], files[0]);
                     }
-                    if(mProgressDialog!=null){
-                        mProgressDialog.setProgress(0);
-                    }
-                    
-                    if(mStatusPgBr!=null){
-                        mStatusPgBr.setProgress((i * 100 / count));
-                    }
+                    publishProgress(mProgressDialog.getMax());
+                    Log.d("Copy a file cost ", "((((( copyFile Cost "
+                            + (double) ((System.nanoTime() - start) / 1000000000.0) + " second. )))))");
                 }
-
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -194,34 +279,35 @@ public class SDStressTest extends Activity {
                 // dest.delete();
                 dest.createNewFile();
             }
-
             InputStream in = null;
             OutputStream out = null;
             long start;
             long end;
+            long total;
             long lenghtOfFile = source.length();
-
             try {
                 in = new FileInputStream(source);
                 out = new FileOutputStream(dest);
-
-                // Transfer bytes from in to out
                 byte[] buf = new byte[1024];
                 int len = 0;
                 total = 0;
                 start = System.nanoTime();
+                int index = 0;
                 while ((len = in.read(buf)) > 0) {
                     total += len;
                     out.write(buf, 0, len);
-                    end = System.nanoTime();
-                    speed = 1000000000 / (end - start);
-                    start = System.nanoTime();
-
-                    // publishProgress((total * 100 / lenghtOfFile));
-                    progressStatus = (int) (total * 100 / lenghtOfFile);
-                    publishProgress();
+                    if (index == 0 || index % 512 == 0) {
+                        end = System.nanoTime();
+                        speed = 1000000000 / (end - start);
+                        start = System.nanoTime();
+                        if (index == 0) {
+                            publishProgress(0);
+                        } else {
+                            publishProgress((int) (total * 100 / lenghtOfFile));
+                        }
+                    }
+                    index++;
                 }
-
             } catch (Exception e) {
                 e.printStackTrace();
             } finally {

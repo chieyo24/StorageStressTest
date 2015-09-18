@@ -63,7 +63,7 @@ public class FileChooser extends ListActivity {
 		else 
 			dirs = f.listFiles();
 			
-		this.setTitle(getString(R.string.currentDir) + ": " + f.getName());
+		this.setTitle(getString(R.string.currentDir) + ": " + f.getAbsolutePath());
 		List<Option> dir = new ArrayList<Option>();
 		List<Option> fls = new ArrayList<Option>();
 		try {
