@@ -23,8 +23,10 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ProgressBar;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ToggleButton;
 import br.com.thinkti.android.filechooser.FileChooser;
 import com.d170.storagestresstest.R;
 
@@ -33,11 +35,16 @@ public class SDStressTest extends Activity {
     private TextView mSrcFileEdTt;
     private TextView mDestFileEdTt;
     private EditText mExecutionCountEdTt;
+    private Button mStartBt;
+    private Button mStopBt;
     private ProgressBar mStatusPgBr;
+    private Switch mProgressDialogSW;
+    private TextView mStatusMesasgeTV;
 
     private ProgressDialog mProgressDialog;
     private Toast mToast;
     private LocalBroadcastManager mLocalBroadcastManager;
+    private SharedPreferences mAppSettings;
 
     /**
      * show user a warning Toast message
@@ -59,9 +66,14 @@ public class SDStressTest extends Activity {
         mSrcFileEdTt = (TextView) findViewById(R.id.srcFileEdTt);
         mDestFileEdTt = (TextView) findViewById(R.id.destFileEdTt);
         mExecutionCountEdTt = (EditText) findViewById(R.id.executionCountEdTt);
+        mStartBt = (Button) findViewById(R.id.startBt);
+        mStopBt = (Button) findViewById(R.id.stopBt);
+        mProgressDialogSW = (Switch) findViewById(R.id.progressDialogSW);
+        mStatusMesasgeTV= (TextView) findViewById(R.id.statusMesasgeTV);
         mStatusPgBr = (ProgressBar) findViewById(R.id.statusPgBr);
         mStatusPgBr.setMax(100);
 
+        mAppSettings = getSharedPreferences(Constants.COPY_SERVICE, 0);
         mToast = Toast.makeText(this, "", Toast.LENGTH_SHORT);
         createProgressDialog("");
 
@@ -72,43 +84,48 @@ public class SDStressTest extends Activity {
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                long start = System.nanoTime();
-
                 if (intent.getAction().equals(Constants.ACTION_COPY_STATUS_REPORT)) {
                     int fileIndex = intent.getIntExtra(Constants.STATUS_COPY_INDEX, 1);
                     int progress = intent.getIntExtra(Constants.STATUS_COPY_PROGRESS, 0);
                     String speed = intent.getStringExtra(Constants.STATUS_COPY_SPEED);
                     String avgSpeed = intent.getStringExtra(Constants.STATUS_COPY_AVGSPEED);
+                    String fileSpeed = intent.getStringExtra(Constants.STATUS_COPY_FILESPEED);
 
-                    // if (mProgressDialog == null) {
-                    // createProgressDialog("copy " + fileIndex + "-th \n" +
-                    // "Speed : " + speed + "(kb/s) Avg-Speed : "
-                    // + avgSpeed + "(kb/s)");
-                    // }
-                    mProgressDialog.setMessage("copy " + fileIndex + "-th \n" + "Speed : " + speed
-                            + "(kb/s) \n Avg-Speed : " + avgSpeed + "(kb/s)");
-                    mProgressDialog.setProgress(progress);
-
-                    if (!mProgressDialog.isShowing()) {
-                        mProgressDialog.show();
+                    if (mProgressDialogSW.isChecked()) {
+                        mProgressDialog.setMessage("copy " + fileIndex + "-th \n" + "Speed : " + speed
+                                + "(kb/s) \n Avg-Speed : " + avgSpeed + "(kb/s)");
+                        mProgressDialog.setProgress(progress);
+                        if (!mProgressDialog.isShowing()) {
+                            mProgressDialog.show();
+                        }
                     }
-
+                    mStatusMesasgeTV.setText("Avg-Speed : " + avgSpeed + "(kb/s)");
                     mStatusPgBr.setProgress(
                             (fileIndex * 100) / Integer.parseInt(mExecutionCountEdTt.getText().toString()));
-
                 } else if (intent.getAction().equals(Constants.ACTION_COPY_FINISH_REPORT)) {
                     if (mProgressDialog != null) {
                         if (mProgressDialog.isShowing()) {
                             try {
                                 mProgressDialog.dismiss();
                             } catch (Exception e) {
-                                //doNotthing
+                                // doNotthing
                             }
                         }
                     }
+                    // send mail
+                    Intent mailIntent = new Intent(Intent.ACTION_SENDTO);
+                    mailIntent.putExtra(Intent.EXTRA_EMAIL, Constants.MAIL_TO.split(";"));
+                    mailIntent.putExtra(Intent.EXTRA_CC, Constants.MAIL_CC.split(";"));
+                    mailIntent.putExtra(Intent.EXTRA_SUBJECT, "SD Strss Test Report");
+                    mailIntent.putExtra(Intent.EXTRA_TEXT, "Success!!");
+                    if (mailIntent.resolveActivity(getPackageManager()) != null) {
+                        startActivity(mailIntent);
+                    }
+                    updateComponentEnable(Constants.UI_INITIAL);
                 }
-//                Log.d("BroadcastUpdateCopyStatus", "((((( onReceive Cost "
-//                        + (double) ((System.nanoTime() - start) / 1000000000.0) + " second. )))))");
+                // Log.d("BroadcastUpdateCopyStatus", "((((( onReceive Cost "
+                // + (double) ((System.nanoTime() - start) / 1000000000.0) + "
+                // second. )))))");
             }
         };
         mLocalBroadcastManager.registerReceiver(receiver, filter);
@@ -118,13 +135,12 @@ public class SDStressTest extends Activity {
         if (mProgressDialog != null) {
             mProgressDialog.dismiss();
         }
-
         mProgressDialog = new ProgressDialog(SDStressTest.this);
         mProgressDialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         if (msg.length() > 0) {
             mProgressDialog.setMessage(msg);
         }
-        mProgressDialog.setCancelable(false);
+        mProgressDialog.setCancelable(true);
         mProgressDialog.setMax(100);
     }
 
@@ -142,29 +158,59 @@ public class SDStressTest extends Activity {
      * Start Button Click
      */
     public void doStartProcess(View v) {
+        if (mStartBt.getText().equals(Constants.UI_STARTBUTTON_PAUSE)) {
+            mAppSettings.edit().putBoolean(Constants.PREFENCES_IS_PAUSE, true).commit();
+            updateComponentEnable(Constants.UI_STARTBUTTON_PAUSE);
+            return;
+        } else if (mStartBt.getText().equals(Constants.UI_STARTBUTTON_RESTART)) {
+            mAppSettings.edit().putBoolean(Constants.PREFENCES_IS_PAUSE, false).commit();
+            updateComponentEnable(Constants.UI_STARTBUTTON_RESTART);
+            return;
+        }
+
         File srcFile = new File(mSrcFileEdTt.getText().toString());
         File dstFile = new File(mDestFileEdTt.getText().toString());
-
         if (!srcFile.isFile()) {
             showToast("Please Choose a file for copy Source !");
         } else if (dstFile.isDirectory()) {
             showToast("Please Choose a file for copy Destination !");
-            // }else if(mExecutionCountEdTt.getText()){
+        } else if (Integer.parseInt(mExecutionCountEdTt.getText().toString()) % 2 != 0) {
+            showToast("SourceFile will disappear,if the number of copy count is odd number!");
         } else {
+            updateComponentEnable(Constants.UI_STARTBUTTON_START);
             // CopyFileTask task = new CopyFileTask();
             // task.execute(srcFile, dstFile);
-            CopyFileService(srcFile, dstFile);
-
+            Intent mServiceIntent = new Intent(this, CopyService.class);
+            mServiceIntent.putExtra(Constants.INITIAL_SOURCE_FILE, srcFile);
+            mServiceIntent.putExtra(Constants.INITIAL_DESTINATION_FILE, dstFile);
+            mServiceIntent.putExtra(Constants.INITIAL_COPY_COUNT,
+                    Integer.parseInt(mExecutionCountEdTt.getText().toString()));
+            // mServiceIntent.putExtra(Constants.INITIAL_DESTINATION_FILE,
+            // mProgressDialogSW.isChecked());
+            mAppSettings.edit().putBoolean(Constants.PREFENCES_IS_SHOW_PROGRESSDIALOG, mProgressDialogSW.isChecked())
+                    .putBoolean(Constants.PREFENCES_IS_PAUSE, false).putBoolean(Constants.PREFENCES_IS_STOP, false)
+                    .commit();
+            startService(mServiceIntent);
         }
     }
 
-    private void CopyFileService(File src, File dest) {
-        Intent mServiceIntent = new Intent(this, CopyService.class);
-        mServiceIntent.putExtra(Constants.INITIAL_SOURCE_FILE, src);
-        mServiceIntent.putExtra(Constants.INITIAL_DESTINATION_FILE, dest);
-        mServiceIntent.putExtra(Constants.INITIAL_COPY_COUNT,
-                Integer.parseInt(mExecutionCountEdTt.getText().toString()));
-        startService(mServiceIntent);
+    private void updateComponentEnable(String mode) {
+        boolean enable = false;      
+        if (mode.equals(Constants.UI_STARTBUTTON_START)) {
+            mStartBt.setText(Constants.UI_STARTBUTTON_PAUSE);
+        } else if (mode.equals(Constants.UI_STARTBUTTON_PAUSE)) {
+            mStartBt.setText(Constants.UI_STARTBUTTON_RESTART);
+        } else if (mode.equals(Constants.UI_STARTBUTTON_RESTART)) {
+            mStartBt.setText(Constants.UI_STARTBUTTON_PAUSE);
+        } else if (mode.equals(Constants.UI_STOPBUTTON_STOP) || mode.equals(Constants.UI_INITIAL)) {
+            enable = true;
+            mStartBt.setText(Constants.UI_STARTBUTTON_START);
+//            mStatusMesasgeTV.setText("WELCOME!");
+        }
+        mSrcFileEdTt.setEnabled(!enable);
+        mDestFileEdTt.setEnabled(!enable);
+        mExecutionCountEdTt.setEnabled(!enable);
+        mStopBt.setEnabled(!enable);
     }
 
     /**
@@ -176,6 +222,9 @@ public class SDStressTest extends Activity {
                 mProgressDialog.dismiss();
             }
         }
+        updateComponentEnable(Constants.UI_STOPBUTTON_STOP);
+        mAppSettings.edit().putBoolean(Constants.PREFENCES_IS_STOP, true)
+                .putBoolean(Constants.PREFENCES_IS_PAUSE, false).commit();
     }
 
     /**

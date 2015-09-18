@@ -19,7 +19,7 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="6"
-            android:text="/sdcard/0819_test/test/123.mp3"
+            android:text="@string/UI_srcFileEdTt"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <ImageButton
@@ -41,7 +41,7 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="6"
-            android:text="/sdcard/0819_test/test/13.mp3"
+            android:text="@string/UI_destFileEdTt"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <ImageButton
@@ -63,7 +63,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Execution_count"
+            android:text="@string/UI_executionCountTxVw"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <EditText
@@ -73,7 +73,16 @@
             android:layout_weight="1"
             android:ems="10"
             android:inputType="number"
-            android:text="2" />
+            android:text="@string/UI_executionCountEdTt" />
+
+
+        <Switch
+            android:id="@+id/progressDialogSW"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="2"
+            android:checked="true"
+            android:text="@string/UI_progressDialogSW" />
 
     </LinearLayout>
 
@@ -87,7 +96,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:onClick="doStartProcess"
-            android:text="Start" />
+            android:text="@string/UI_startBt" />
 
         <Button
             android:id="@+id/stopBt"
@@ -95,19 +104,22 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:onClick="doStopProcess"
-            android:text="Stop" />
+            android:text="@string/UI_stopBt" />
     </LinearLayout>
 
     <ProgressBar
         android:id="@+id/statusPgBr"
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        android:maxHeight="32dp"
+        android:minHeight="16dip" />
 
-    <ProgressBar
-        android:id="@+id/progressBar1"
-        style="?android:attr/progressBarStyleHorizontal"
+    <TextView
+        android:id="@+id/statusMesasgeTV"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        android:text="@string/UI_statusMesasgeTV"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
 
 </LinearLayout>
