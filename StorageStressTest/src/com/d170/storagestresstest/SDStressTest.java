@@ -45,7 +45,6 @@ public class SDStressTest extends Activity {
 
     /**
      * show user a warning Toast message
-     * 
      * @param msg
      *            message
      */
@@ -212,7 +211,7 @@ public class SDStressTest extends Activity {
             startService(mServiceIntent);
         }
     }
-    
+
     @Override
     public void onSaveInstanceState(Bundle savedInstanceState) {
         // Save the user's current UI mode
@@ -220,17 +219,17 @@ public class SDStressTest extends Activity {
         // Always call the superclass so it can save the view hierarchy state
         super.onSaveInstanceState(savedInstanceState);
     }
-    
+
     @Override
     public void onRestoreInstanceState(Bundle savedInstanceState) {
-     // Always call the superclass so it can restore the view hierarchy
+        // Always call the superclass so it can restore the view hierarchy
         super.onRestoreInstanceState(savedInstanceState);
         updateComponentEnable(savedInstanceState.getString(Constants.UI_MODE));
     }
-    
+
     private void updateComponentEnable(String mode) {
         boolean enabled = false;
-        mUIMode=mode;
+        mUIMode = mode;
         if (mode.equals(Constants.UI_STARTBUTTON_START)) {
             mStartBt.setText(Constants.UI_STARTBUTTON_PAUSE);
         } else if (mode.equals(Constants.UI_STARTBUTTON_PAUSE)) {

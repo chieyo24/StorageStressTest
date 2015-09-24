@@ -4,7 +4,6 @@
     <string name="app_name">SDCopy</string>
     <string name="file_choose_app">File Chooser</string>
     <string name="action_settings">Settings</string>
-    
     <string name="UI_srcFileEdTt">Source File</string>
     <string name="UI_destFileEdTt">Destination File</string>
     <string name="UI_executionCountEdTt">5000</string>
@@ -13,5 +12,4 @@
     <string name="UI_startBt">START</string>
     <string name="UI_stopBt">STOP</string>
     <string name="UI_statusMesasgeTV">WELCOME!</string>
-    
 </resources>
