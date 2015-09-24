@@ -22,9 +22,9 @@ public final class Constants {
     
     public static final String PREFENCES_IS_PAUSE="PREFENCES_IS_PAUSE";
     public static final String PREFENCES_IS_STOP="PREFENCES_IS_STOP";
-    public static final String PREFENCES_IS_SHOW_PROGRESSDIALOG="PREFENCES_IS_SHOW_PROGRESSDIALOG";
     
-    public static final String UI_INITIAL="INITIAL";
+    public static final String UI_MODE="UI_MODE";
+    public static final String UI_INITIAL="UI_INITIAL";
     public static final String UI_STARTBUTTON_START="START";
     public static final String UI_STARTBUTTON_PAUSE="PAUSE";
     public static final String UI_STARTBUTTON_RESTART="RESTART";

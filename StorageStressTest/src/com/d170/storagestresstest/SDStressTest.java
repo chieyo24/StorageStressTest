@@ -24,7 +24,6 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-
 public class SDStressTest extends Activity {
 
     private TextView mSrcFileEdTt;
@@ -42,6 +41,7 @@ public class SDStressTest extends Activity {
     private Toast mToast;
     private LocalBroadcastManager mLocalBroadcastManager;
     private SharedPreferences mAppSettings;
+    private String mUIMode;
 
     /**
      * show user a warning Toast message
@@ -62,8 +62,8 @@ public class SDStressTest extends Activity {
 
         mSrcFileEdTt = (TextView) findViewById(R.id.srcFileEdTt);
         mDestFileEdTt = (TextView) findViewById(R.id.destFileEdTt);
-        mSrcChooserBt=(ImageButton)findViewById(R.id.srcChooserBt);
-        mDestChooserBt=(ImageButton)findViewById(R.id.destChooserBt);
+        mSrcChooserBt = (ImageButton) findViewById(R.id.srcChooserBt);
+        mDestChooserBt = (ImageButton) findViewById(R.id.destChooserBt);
         mExecutionCountEdTt = (EditText) findViewById(R.id.executionCountEdTt);
         mStartBt = (Button) findViewById(R.id.startBt);
         mStopBt = (Button) findViewById(R.id.stopBt);
@@ -71,8 +71,8 @@ public class SDStressTest extends Activity {
         mStatusMesasgeTV = (TextView) findViewById(R.id.statusMesasgeTV);
         mStatusPgBr = (ProgressBar) findViewById(R.id.statusPgBr);
         mStatusPgBr.setMax(100);
-        
-        //portrait & landscape orientation should be initial 
+
+        // portrait & landscape orientation should be initial
         createProgressDialog();
         mAppSettings = getSharedPreferences(Constants.COPY_SERVICE, 0);
         mToast = Toast.makeText(this, "", Toast.LENGTH_SHORT);
@@ -94,7 +94,7 @@ public class SDStressTest extends Activity {
                     if (mProgressDialogSW.isChecked()) {
                         mProgressDialog.setMessage("copy " + fileIndex + "-th \n" // fileIndex
                                 + "Speed : " + speed + "(kb/s)"); // speed
-                        Log.d("onReceive", "Copy progress ("+progress+")");
+                        Log.d("onReceive", "Copy progress (" + progress + ")");
                         mProgressDialog.setProgress(progress);
                         if (!mProgressDialog.isShowing()) {
                             mProgressDialog.show();
@@ -102,7 +102,8 @@ public class SDStressTest extends Activity {
                     }
                     int totalFileCount = Integer.parseInt(mExecutionCountEdTt.getText().toString());
                     mStatusPgBr.setProgress((fileIndex * 100) / totalFileCount);
-                    if (fileIndex > 1) {//avg speed generated after first file copy finish.
+                    if (fileIndex > 1) {// avg speed generated after first file
+                                        // copy finish.
                         long remainingSeconds = costTime * (totalFileCount - fileIndex + 1);
                         String remainingTime = "";
                         remainingTime = " ; Remaining time : " + parserSecond2Time(remainingSeconds);
@@ -114,7 +115,8 @@ public class SDStressTest extends Activity {
                             mProgressDialog.hide();
                         }
                     }
-                    mStatusMesasgeTV.setText("Avg-Speed : " + avgSpeed + "(kb/s) ; Total Cost Time : " + parserSecond2Time(costTime));
+                    mStatusMesasgeTV.setText(
+                            "Avg-Speed : " + avgSpeed + "(kb/s) ; Total Cost Time : " + parserSecond2Time(costTime));
                     updateComponentEnable(Constants.UI_INITIAL);
                     // send mail
                     Intent mailIntent = new Intent(Intent.ACTION_SENDTO);
@@ -129,16 +131,15 @@ public class SDStressTest extends Activity {
             }
         };
         mLocalBroadcastManager.registerReceiver(receiver, filter);
-        updateComponentEnable(Constants.UI_INITIAL);
     }
 
-    private void createProgressDialog(){
+    private void createProgressDialog() {
         mProgressDialog = new ProgressDialog(SDStressTest.this);
         mProgressDialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         mProgressDialog.setCancelable(true);
         mProgressDialog.setMax(100);
     }
-    
+
     private String parserSecond2Time(long seconds) {
         String[] timeArray = new String[3];
         timeArray[2] = String.valueOf(seconds % 60); // second
@@ -191,12 +192,12 @@ public class SDStressTest extends Activity {
             showToast("Please choose a file for source of copy task !");
         } else if (dstFile.isDirectory()) {
             showToast("Please choose a file for destination of copy task !");
-        }else if (executeCount.length()==0) {
+        } else if (executeCount.length() == 0) {
             showToast("Please input the number of execute count !");
         } else if (Integer.parseInt(executeCount) % 2 != 0) {
             showToast("The number of execution count shoule be even number,or the source file will be deleted.");
         } else {
-            //Each start should initial progress dialog, or progress invalid.
+            // Each start should initial progress dialog, or progress invalid.
             createProgressDialog();
             updateComponentEnable(Constants.UI_STARTBUTTON_START);
             Intent mServiceIntent = new Intent(this, CopyService.class);
@@ -204,16 +205,32 @@ public class SDStressTest extends Activity {
             mServiceIntent.putExtra(Constants.INITIAL_DESTINATION_FILE, dstFile);
             mServiceIntent.putExtra(Constants.INITIAL_COPY_COUNT,
                     Integer.parseInt(mExecutionCountEdTt.getText().toString()));
-            mServiceIntent.putExtra(Constants.INITIAL_PROGRESS_DIALOG_EABLE,mProgressDialogSW.isChecked());
+            mServiceIntent.putExtra(Constants.INITIAL_PROGRESS_DIALOG_EABLE, mProgressDialogSW.isChecked());
 
             mAppSettings.edit().putBoolean(Constants.PREFENCES_IS_PAUSE, false)
                     .putBoolean(Constants.PREFENCES_IS_STOP, false).commit();
             startService(mServiceIntent);
         }
     }
-
+    
+    @Override
+    public void onSaveInstanceState(Bundle savedInstanceState) {
+        // Save the user's current UI mode
+        savedInstanceState.putString(Constants.UI_MODE, mUIMode);
+        // Always call the superclass so it can save the view hierarchy state
+        super.onSaveInstanceState(savedInstanceState);
+    }
+    
+    @Override
+    public void onRestoreInstanceState(Bundle savedInstanceState) {
+     // Always call the superclass so it can restore the view hierarchy
+        super.onRestoreInstanceState(savedInstanceState);
+        updateComponentEnable(savedInstanceState.getString(Constants.UI_MODE));
+    }
+    
     private void updateComponentEnable(String mode) {
-        boolean enable = false;
+        boolean enabled = false;
+        mUIMode=mode;
         if (mode.equals(Constants.UI_STARTBUTTON_START)) {
             mStartBt.setText(Constants.UI_STARTBUTTON_PAUSE);
         } else if (mode.equals(Constants.UI_STARTBUTTON_PAUSE)) {
@@ -221,15 +238,16 @@ public class SDStressTest extends Activity {
         } else if (mode.equals(Constants.UI_STARTBUTTON_RESTART)) {
             mStartBt.setText(Constants.UI_STARTBUTTON_PAUSE);
         } else if (mode.equals(Constants.UI_STOPBUTTON_STOP) || mode.equals(Constants.UI_INITIAL)) {
-            enable = true;
+            enabled = true;
             mStartBt.setText(Constants.UI_STARTBUTTON_START);
         }
-        mSrcFileEdTt.setEnabled(enable);
-        mDestFileEdTt.setEnabled(enable);
-        mSrcChooserBt.setEnabled(enable);
-        mDestChooserBt.setEnabled(enable);
-        mExecutionCountEdTt.setEnabled(enable);
-        mStopBt.setEnabled(!enable);
+        mSrcFileEdTt.setEnabled(enabled);
+        mDestFileEdTt.setEnabled(enabled);
+        mSrcChooserBt.setEnabled(enabled);
+        mDestChooserBt.setEnabled(enabled);
+        mExecutionCountEdTt.setEnabled(enabled);
+        mProgressDialogSW.setEnabled(enabled);
+        mStopBt.setEnabled(!enabled);
     }
 
     /**
@@ -265,10 +283,12 @@ public class SDStressTest extends Activity {
             // doNotThing
             break;
         }
-        folderPath = folderPath.substring(0, folderPath.lastIndexOf("/"));
-        File dir = new File(folderPath);
-        if (folderPath.length() > 0 && dir.isDirectory()) {
-            intent.putExtra("dirPath", folderPath);
+        if (folderPath.lastIndexOf("/") != -1) {
+            folderPath = folderPath.substring(0, folderPath.lastIndexOf("/"));
+            File dir = new File(folderPath);
+            if (dir.isDirectory()) {
+                intent.putExtra("dirPath", folderPath);
+            }
         }
         startActivityForResult(intent, bt.getId());
     }
