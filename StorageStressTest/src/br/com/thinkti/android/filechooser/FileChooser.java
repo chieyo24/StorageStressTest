@@ -26,6 +26,7 @@ public class FileChooser extends ListActivity {
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		String dirPath="/";
 		Bundle extras = getIntent().getExtras();
 		if (extras != null) {
 			if (extras.getStringArrayList("filterFileExtension") != null) {
@@ -36,10 +37,12 @@ public class FileChooser extends ListActivity {
 						return ((pathname.isDirectory()) || (pathname.getName().contains(".")?extensions.contains(pathname.getName().substring(pathname.getName().lastIndexOf("."))):false));
 					}
 				};
+			}else if(extras.getString("dirPath")!=null){
+			    dirPath=extras.getString("dirPath");
 			}
 		}
 		
-		currentDir = new File("/");
+		currentDir = new File(dirPath);
 		fill(currentDir);		
 	}
 	

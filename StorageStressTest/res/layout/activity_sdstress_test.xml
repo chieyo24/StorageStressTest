@@ -82,6 +82,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="2"
             android:checked="true"
+            android:onClick="switchProgressDialogEnable"
             android:text="@string/UI_progressDialogSW" />
 
     </LinearLayout>

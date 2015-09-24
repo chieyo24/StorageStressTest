@@ -18,11 +18,11 @@ public class CopyService extends IntentService {
     private SharedPreferences mAppSettings;
     private int fileIndex = 0;
     private int progress = 0;
-    private String speed = "0";
-    private String avgSpeed = "0";
-    private String fileSpeed = "0";
-    private boolean isShowProgressDialog;
+    private double speed = 0;
+    private double avgSpeed = 0;
+    private double costTime_second;
     private long lenghtOfFile;
+    private boolean isShowProgress;
 
     public CopyService() {
         super(Constants.COPY_SERVICE);
@@ -31,26 +31,24 @@ public class CopyService extends IntentService {
     @Override
     protected void onHandleIntent(Intent workIntent) {
         mAppSettings = getSharedPreferences(Constants.COPY_SERVICE, 0);
-        // String action = workIntent.getAction();
-        // if (Constants.WIFI_MANUAL_SWITCH_ACTION.equals(action))
         File src = (File) workIntent.getSerializableExtra(Constants.INITIAL_SOURCE_FILE);
         File dest = (File) workIntent.getSerializableExtra(Constants.INITIAL_DESTINATION_FILE);
         int count = workIntent.getIntExtra(Constants.INITIAL_COPY_COUNT, 0);
+        isShowProgress = mAppSettings.getBoolean(Constants.INITIAL_PROGRESS_DIALOG_EABLE, true);
         lenghtOfFile = src.length();
-                
+        long start = System.nanoTime();
         for (fileIndex = 1; fileIndex < count + 1; fileIndex++) {
             while (mAppSettings.getBoolean(Constants.PREFENCES_IS_PAUSE, false)) {
                 try {
-                    Thread.sleep(1000);
+                    Thread.sleep(3000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }
-            if (mAppSettings.getBoolean(Constants.PREFENCES_IS_STOP, false)) {
-                BroadcastUpdateCopyStatus(Constants.ACTION_COPY_FINISH_REPORT);
+            if (fileIndex % 2 == 0 && mAppSettings.getBoolean(Constants.PREFENCES_IS_STOP, false)) {
+                break;
             }
-            isShowProgressDialog = mAppSettings.getBoolean(Constants.PREFENCES_IS_SHOW_PROGRESSDIALOG, true);
-            long start = System.nanoTime();
+            long start_file = System.nanoTime();
             try {
                 if (fileIndex % 2 == 1) {
                     copyFile(src, dest);
@@ -60,78 +58,75 @@ public class CopyService extends IntentService {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            float v_fileSpeed=(float) ((System.nanoTime() - start) / 1000000000);
-            fileSpeed = String.valueOf(v_fileSpeed);
-//            Log.d("Copy a file cost ", "((((( copyFile Cost " + fileSpeed + " second. )))))");
-            speed = String.format("%d", (int)(lenghtOfFile/1024/v_fileSpeed));
-            int v_avgSpeed = (Integer.valueOf(avgSpeed) * (fileIndex - 1) + Integer.valueOf(speed)) / fileIndex;
-            avgSpeed = String.format("%d", v_avgSpeed);
-            progress=100;
+            costTime_second = (double) (System.nanoTime() - start_file) / 1000000000.0;
+            speed = (double) ((lenghtOfFile / 1024.0) / costTime_second);
+            avgSpeed = (avgSpeed * (fileIndex - 1) + speed) / fileIndex;
+            progress = 100;
             BroadcastUpdateCopyStatus(Constants.ACTION_COPY_STATUS_REPORT);
         }
+        costTime_second = (double) (System.nanoTime() - start) / 1000000000.0;
         BroadcastUpdateCopyStatus(Constants.ACTION_COPY_FINISH_REPORT);
     }
 
     private void BroadcastUpdateCopyStatus(String action) {
         Intent copyStatusReportIntent = new Intent(action);
         copyStatusReportIntent.putExtra(Constants.STATUS_COPY_INDEX, fileIndex);
-        copyStatusReportIntent.putExtra(Constants.STATUS_COPY_FILESPEED, fileSpeed);
-        copyStatusReportIntent.putExtra(Constants.STATUS_COPY_PROGRESS, progress);
-        copyStatusReportIntent.putExtra(Constants.STATUS_COPY_SPEED, speed);
-        copyStatusReportIntent.putExtra(Constants.STATUS_COPY_AVGSPEED, avgSpeed);
+        copyStatusReportIntent.putExtra(Constants.STATUS_COPY_PROGRESS, ++progress);
+        copyStatusReportIntent.putExtra(Constants.STATUS_COPY_SPEED, String.format("%.0f", speed));
+        copyStatusReportIntent.putExtra(Constants.STATUS_COPY_AVGSPEED, String.format("%.0f", avgSpeed));
+        copyStatusReportIntent.putExtra(Constants.STATUS_COPY_COSTTIME, String.format("%.0f", costTime_second));
         LocalBroadcastManager.getInstance(this).sendBroadcast(copyStatusReportIntent);
     }
 
     private void copyFile(File source, File dest) throws IOException {
         if (!dest.exists()) {
-            // dest.delete();
+            dest.delete();
             dest.createNewFile();
         }
-
         InputStream in = null;
         OutputStream out = null;
-
         try {
             in = new FileInputStream(source);
             out = new FileOutputStream(dest);
-
-            int index = 1;
-            int byfByte;
+            int bufByte;
             long reportFrequency;
             long fileKbs = lenghtOfFile / 1024;
-            if (fileKbs <= 100) {// ~100K
-                byfByte = 1024;// 1kb
-                reportFrequency = 1;
+            if (fileKbs <= 100) {// ~100K (no File Progress Bar)
+                bufByte = 1024;// 1kb
+                reportFrequency = 1 * 100; // 100 progress report
             } else if (fileKbs > 100 && fileKbs <= 1024) {// 100kb~1mb
-                byfByte = 1024;// 1kb
-                reportFrequency = fileKbs / 100;
+                bufByte = 1024;// 1kb
+                reportFrequency = fileKbs / 100 / 1 * 20; // 20 progress report
             } else if (fileKbs > 1024 && fileKbs <= 1024 * 100) {// 1mb~100mb
-                byfByte = 1024 * 10;// 10kb
-                reportFrequency = fileKbs / 100 / 10;
-            } else if (fileKbs > 1024 * 100 && fileKbs <= 1024 * 1024) {// 100~1000mb
-                byfByte = 1024 * 512;// 512kb
-                reportFrequency = fileKbs / 100 / 512;
+                bufByte = 1024 * 10;// 10kb
+                reportFrequency = fileKbs / 100 / 10 * 10; // 10 progress report
+            } else if (fileKbs > 1024 * 100 && fileKbs <= 1024 * 1024) {// 100mb~1000mb
+                bufByte = 1024 * 512;// 512kb
+                reportFrequency = fileKbs / 100 / 512 * 5; // 5 progress report
             } else { // 1000mb~
-                byfByte = 1024 * 1024;// 1mb
+                bufByte = 1024 * 1024;// 1mb
                 reportFrequency = fileKbs / 100 / 1024;
             }
-
             int len = 0;
             long total = 0;
-            byte[] buf = new byte[byfByte];
+            byte[] buf = new byte[bufByte];
+            int index = 1;
             long start = System.nanoTime();
-            long end;
             while ((len = in.read(buf)) > 0) {
                 total += len;
                 out.write(buf, 0, len);
-                if (isShowProgressDialog && index % reportFrequency == reportFrequency - 1) {
-                    end = System.nanoTime();
-                    speed = String.format("%d", (1000000000 / (end - start) * (byfByte / 1024) * reportFrequency));
-                    start = System.nanoTime();
+                if (isShowProgress && index % reportFrequency == 0) {
+                    double costTime_second = (double) (System.nanoTime() - start) / 1000000000.0;
+                    speed = (len / 1024.0) / costTime_second;
                     progress = (int) (total * 100 / lenghtOfFile);
                     BroadcastUpdateCopyStatus(Constants.ACTION_COPY_STATUS_REPORT);
                 }
+                start = System.nanoTime();
                 index++;
+            }
+            // after copy check the file length.
+            if (source.length() != dest.length()) {
+                throw new Exception("Copy Fail! (The length of destination file is different with source file.)");
             }
         } catch (Exception e) {
             e.printStackTrace();

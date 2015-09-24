@@ -1,11 +1,9 @@
 package com.d170.storagestresstest;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+
+import br.com.thinkti.android.filechooser.FileChooser;
+import com.d170.storagestresstest.R;
 
 import android.app.Activity;
 import android.app.ProgressDialog;
@@ -14,7 +12,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
@@ -26,9 +23,7 @@ import android.widget.ProgressBar;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.widget.ToggleButton;
-import br.com.thinkti.android.filechooser.FileChooser;
-import com.d170.storagestresstest.R;
+
 
 public class SDStressTest extends Activity {
 
@@ -40,6 +35,8 @@ public class SDStressTest extends Activity {
     private ProgressBar mStatusPgBr;
     private Switch mProgressDialogSW;
     private TextView mStatusMesasgeTV;
+    private ImageButton mSrcChooserBt;
+    private ImageButton mDestChooserBt;
 
     private ProgressDialog mProgressDialog;
     private Toast mToast;
@@ -65,17 +62,20 @@ public class SDStressTest extends Activity {
 
         mSrcFileEdTt = (TextView) findViewById(R.id.srcFileEdTt);
         mDestFileEdTt = (TextView) findViewById(R.id.destFileEdTt);
+        mSrcChooserBt=(ImageButton)findViewById(R.id.srcChooserBt);
+        mDestChooserBt=(ImageButton)findViewById(R.id.destChooserBt);
         mExecutionCountEdTt = (EditText) findViewById(R.id.executionCountEdTt);
         mStartBt = (Button) findViewById(R.id.startBt);
         mStopBt = (Button) findViewById(R.id.stopBt);
         mProgressDialogSW = (Switch) findViewById(R.id.progressDialogSW);
-        mStatusMesasgeTV= (TextView) findViewById(R.id.statusMesasgeTV);
+        mStatusMesasgeTV = (TextView) findViewById(R.id.statusMesasgeTV);
         mStatusPgBr = (ProgressBar) findViewById(R.id.statusPgBr);
         mStatusPgBr.setMax(100);
-
+        
+        //portrait & landscape orientation should be initial 
+        createProgressDialog();
         mAppSettings = getSharedPreferences(Constants.COPY_SERVICE, 0);
         mToast = Toast.makeText(this, "", Toast.LENGTH_SHORT);
-        createProgressDialog("");
 
         mLocalBroadcastManager = LocalBroadcastManager.getInstance(this);
         IntentFilter filter = new IntentFilter();
@@ -84,34 +84,38 @@ public class SDStressTest extends Activity {
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                if (intent.getAction().equals(Constants.ACTION_COPY_STATUS_REPORT)) {
-                    int fileIndex = intent.getIntExtra(Constants.STATUS_COPY_INDEX, 1);
-                    int progress = intent.getIntExtra(Constants.STATUS_COPY_PROGRESS, 0);
-                    String speed = intent.getStringExtra(Constants.STATUS_COPY_SPEED);
-                    String avgSpeed = intent.getStringExtra(Constants.STATUS_COPY_AVGSPEED);
-                    String fileSpeed = intent.getStringExtra(Constants.STATUS_COPY_FILESPEED);
+                int fileIndex = intent.getIntExtra(Constants.STATUS_COPY_INDEX, 1);
+                int progress = intent.getIntExtra(Constants.STATUS_COPY_PROGRESS, 0);
+                int speed = Integer.valueOf(intent.getStringExtra(Constants.STATUS_COPY_SPEED));
+                int avgSpeed = Integer.valueOf(intent.getStringExtra(Constants.STATUS_COPY_AVGSPEED));
+                long costTime = Long.valueOf(intent.getStringExtra(Constants.STATUS_COPY_COSTTIME));
 
+                if (intent.getAction().equals(Constants.ACTION_COPY_STATUS_REPORT)) {
                     if (mProgressDialogSW.isChecked()) {
-                        mProgressDialog.setMessage("copy " + fileIndex + "-th \n" + "Speed : " + speed
-                                + "(kb/s) \n Avg-Speed : " + avgSpeed + "(kb/s)");
+                        mProgressDialog.setMessage("copy " + fileIndex + "-th \n" // fileIndex
+                                + "Speed : " + speed + "(kb/s)"); // speed
+                        Log.d("onReceive", "Copy progress ("+progress+")");
                         mProgressDialog.setProgress(progress);
                         if (!mProgressDialog.isShowing()) {
                             mProgressDialog.show();
                         }
                     }
-                    mStatusMesasgeTV.setText("Avg-Speed : " + avgSpeed + "(kb/s)");
-                    mStatusPgBr.setProgress(
-                            (fileIndex * 100) / Integer.parseInt(mExecutionCountEdTt.getText().toString()));
+                    int totalFileCount = Integer.parseInt(mExecutionCountEdTt.getText().toString());
+                    mStatusPgBr.setProgress((fileIndex * 100) / totalFileCount);
+                    if (fileIndex > 1) {//avg speed generated after first file copy finish.
+                        long remainingSeconds = costTime * (totalFileCount - fileIndex + 1);
+                        String remainingTime = "";
+                        remainingTime = " ; Remaining time : " + parserSecond2Time(remainingSeconds);
+                        mStatusMesasgeTV.setText("Avg-Speed : " + avgSpeed + "(kb/s)" + remainingTime);
+                    }
                 } else if (intent.getAction().equals(Constants.ACTION_COPY_FINISH_REPORT)) {
                     if (mProgressDialog != null) {
                         if (mProgressDialog.isShowing()) {
-                            try {
-                                mProgressDialog.dismiss();
-                            } catch (Exception e) {
-                                // doNotthing
-                            }
+                            mProgressDialog.hide();
                         }
                     }
+                    mStatusMesasgeTV.setText("Avg-Speed : " + avgSpeed + "(kb/s) ; Total Cost Time : " + parserSecond2Time(costTime));
+                    updateComponentEnable(Constants.UI_INITIAL);
                     // send mail
                     Intent mailIntent = new Intent(Intent.ACTION_SENDTO);
                     mailIntent.putExtra(Intent.EXTRA_EMAIL, Constants.MAIL_TO.split(";"));
@@ -121,37 +125,49 @@ public class SDStressTest extends Activity {
                     if (mailIntent.resolveActivity(getPackageManager()) != null) {
                         startActivity(mailIntent);
                     }
-                    updateComponentEnable(Constants.UI_INITIAL);
                 }
-                // Log.d("BroadcastUpdateCopyStatus", "((((( onReceive Cost "
-                // + (double) ((System.nanoTime() - start) / 1000000000.0) + "
-                // second. )))))");
             }
         };
         mLocalBroadcastManager.registerReceiver(receiver, filter);
+        updateComponentEnable(Constants.UI_INITIAL);
     }
 
-    private void createProgressDialog(String msg) {
-        if (mProgressDialog != null) {
-            mProgressDialog.dismiss();
-        }
+    private void createProgressDialog(){
         mProgressDialog = new ProgressDialog(SDStressTest.this);
         mProgressDialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-        if (msg.length() > 0) {
-            mProgressDialog.setMessage(msg);
-        }
         mProgressDialog.setCancelable(true);
         mProgressDialog.setMax(100);
+    }
+    
+    private String parserSecond2Time(long seconds) {
+        String[] timeArray = new String[3];
+        timeArray[2] = String.valueOf(seconds % 60); // second
+        timeArray[1] = String.valueOf((seconds / 60) % 60); // minute
+        timeArray[0] = String.valueOf(seconds / 60 / 60); // hour
+        return timeArray[0] + " hour " + timeArray[1] + " minute " + timeArray[2] + " second.";
     }
 
     @Override
     protected void onDestroy() {
         if (mProgressDialog != null) {
-            if (mProgressDialog.isShowing()) {
-                mProgressDialog.dismiss();
-            }
+            mProgressDialog.dismiss();
         }
         super.onDestroy();
+    }
+
+    /**
+     * Progress Dialog Switch
+     */
+    public void switchProgressDialogEnable(View v) {
+        if (mProgressDialogSW.isChecked()) {
+            if (!mProgressDialog.isShowing()) {
+                mProgressDialog.show();
+            }
+        } else {
+            if (mProgressDialog.isShowing()) {
+                mProgressDialog.hide();
+            }
+        }
     }
 
     /**
@@ -161,41 +177,43 @@ public class SDStressTest extends Activity {
         if (mStartBt.getText().equals(Constants.UI_STARTBUTTON_PAUSE)) {
             mAppSettings.edit().putBoolean(Constants.PREFENCES_IS_PAUSE, true).commit();
             updateComponentEnable(Constants.UI_STARTBUTTON_PAUSE);
+            showToast("When current file is copyied finish,copy task will be pause.");
             return;
         } else if (mStartBt.getText().equals(Constants.UI_STARTBUTTON_RESTART)) {
             mAppSettings.edit().putBoolean(Constants.PREFENCES_IS_PAUSE, false).commit();
             updateComponentEnable(Constants.UI_STARTBUTTON_RESTART);
             return;
         }
-
         File srcFile = new File(mSrcFileEdTt.getText().toString());
         File dstFile = new File(mDestFileEdTt.getText().toString());
+        String executeCount = mExecutionCountEdTt.getText().toString();
         if (!srcFile.isFile()) {
-            showToast("Please Choose a file for copy Source !");
+            showToast("Please choose a file for source of copy task !");
         } else if (dstFile.isDirectory()) {
-            showToast("Please Choose a file for copy Destination !");
-        } else if (Integer.parseInt(mExecutionCountEdTt.getText().toString()) % 2 != 0) {
-            showToast("SourceFile will disappear,if the number of copy count is odd number!");
+            showToast("Please choose a file for destination of copy task !");
+        }else if (executeCount.length()==0) {
+            showToast("Please input the number of execute count !");
+        } else if (Integer.parseInt(executeCount) % 2 != 0) {
+            showToast("The number of execution count shoule be even number,or the source file will be deleted.");
         } else {
+            //Each start should initial progress dialog, or progress invalid.
+            createProgressDialog();
             updateComponentEnable(Constants.UI_STARTBUTTON_START);
-            // CopyFileTask task = new CopyFileTask();
-            // task.execute(srcFile, dstFile);
             Intent mServiceIntent = new Intent(this, CopyService.class);
             mServiceIntent.putExtra(Constants.INITIAL_SOURCE_FILE, srcFile);
             mServiceIntent.putExtra(Constants.INITIAL_DESTINATION_FILE, dstFile);
             mServiceIntent.putExtra(Constants.INITIAL_COPY_COUNT,
                     Integer.parseInt(mExecutionCountEdTt.getText().toString()));
-            // mServiceIntent.putExtra(Constants.INITIAL_DESTINATION_FILE,
-            // mProgressDialogSW.isChecked());
-            mAppSettings.edit().putBoolean(Constants.PREFENCES_IS_SHOW_PROGRESSDIALOG, mProgressDialogSW.isChecked())
-                    .putBoolean(Constants.PREFENCES_IS_PAUSE, false).putBoolean(Constants.PREFENCES_IS_STOP, false)
-                    .commit();
+            mServiceIntent.putExtra(Constants.INITIAL_PROGRESS_DIALOG_EABLE,mProgressDialogSW.isChecked());
+
+            mAppSettings.edit().putBoolean(Constants.PREFENCES_IS_PAUSE, false)
+                    .putBoolean(Constants.PREFENCES_IS_STOP, false).commit();
             startService(mServiceIntent);
         }
     }
 
     private void updateComponentEnable(String mode) {
-        boolean enable = false;      
+        boolean enable = false;
         if (mode.equals(Constants.UI_STARTBUTTON_START)) {
             mStartBt.setText(Constants.UI_STARTBUTTON_PAUSE);
         } else if (mode.equals(Constants.UI_STARTBUTTON_PAUSE)) {
@@ -205,11 +223,12 @@ public class SDStressTest extends Activity {
         } else if (mode.equals(Constants.UI_STOPBUTTON_STOP) || mode.equals(Constants.UI_INITIAL)) {
             enable = true;
             mStartBt.setText(Constants.UI_STARTBUTTON_START);
-//            mStatusMesasgeTV.setText("WELCOME!");
         }
-        mSrcFileEdTt.setEnabled(!enable);
-        mDestFileEdTt.setEnabled(!enable);
-        mExecutionCountEdTt.setEnabled(!enable);
+        mSrcFileEdTt.setEnabled(enable);
+        mDestFileEdTt.setEnabled(enable);
+        mSrcChooserBt.setEnabled(enable);
+        mDestChooserBt.setEnabled(enable);
+        mExecutionCountEdTt.setEnabled(enable);
         mStopBt.setEnabled(!enable);
     }
 
@@ -217,14 +236,15 @@ public class SDStressTest extends Activity {
      * Stop Button Click
      */
     public void doStopProcess(View v) {
+        showToast("When the even count of file is copyied finish,copy task will be stop.");
         if (mProgressDialog != null) {
             if (mProgressDialog.isShowing()) {
-                mProgressDialog.dismiss();
+                mProgressDialog.hide();
             }
         }
         updateComponentEnable(Constants.UI_STOPBUTTON_STOP);
-        mAppSettings.edit().putBoolean(Constants.PREFENCES_IS_STOP, true)
-                .putBoolean(Constants.PREFENCES_IS_PAUSE, false).commit();
+        mAppSettings.edit().putBoolean(Constants.PREFENCES_IS_PAUSE, false)
+                .putBoolean(Constants.PREFENCES_IS_STOP, true).commit();
     }
 
     /**
@@ -233,8 +253,24 @@ public class SDStressTest extends Activity {
     public void doFileChooser(View v) {
         ImageButton bt = (ImageButton) v;
         Intent intent = new Intent(this, FileChooser.class);
+        String folderPath = "";
+        switch (bt.getId()) {
+        case R.id.srcChooserBt:
+            folderPath = mSrcFileEdTt.getText().toString();
+            break;
+        case R.id.destChooserBt:
+            folderPath = mDestFileEdTt.getText().toString();
+            break;
+        default:
+            // doNotThing
+            break;
+        }
+        folderPath = folderPath.substring(0, folderPath.lastIndexOf("/"));
+        File dir = new File(folderPath);
+        if (folderPath.length() > 0 && dir.isDirectory()) {
+            intent.putExtra("dirPath", folderPath);
+        }
         startActivityForResult(intent, bt.getId());
-
     }
 
     /**
@@ -254,118 +290,6 @@ public class SDStressTest extends Activity {
             default:
                 // doNotThing
                 break;
-            }
-        }
-    }
-
-    private class CopyFileTask extends AsyncTask<File, Integer, Boolean> {
-
-        private float speed;
-        // private int progressStatus;
-        private int copyCount;
-        private int fileIndex;
-
-        @Override
-        protected void onPreExecute() {
-            copyCount = Integer.parseInt(mExecutionCountEdTt.getText().toString());
-
-            mProgressDialog.setProgress(0);
-            mProgressDialog.show();
-            mStatusPgBr.setProgress(0);
-        }
-
-        @Override
-        protected void onProgressUpdate(Integer... values) {
-
-            if (values[0] == 0) {
-                // createProgressDialog("Copy " + fileIndex + "-th File (Speed :
-                // " + String.format("%.2f", speed) +
-                // "; total :"+ copyCount + ")");
-                // mProgressDialog.setProgress(values[0]);
-                // mProgressDialog.show();
-
-                if (mStatusPgBr != null) {
-                    mStatusPgBr.setProgress((fileIndex * 100 / copyCount));
-                }
-            }
-            mProgressDialog.setProgress(values[0]);
-
-            // if (mProgressDialog != null) {
-            // mProgressDialog.setProgress(progressStatus);
-            // } else {
-            // mProgressDialog.setProgress(progressStatus);
-            // mProgressDialog.show();
-            // }
-        }
-
-        @Override
-        protected Boolean doInBackground(File... files) {
-            try {
-                for (fileIndex = 1; fileIndex < copyCount + 1; fileIndex++) {
-                    long start = System.nanoTime();
-                    if (fileIndex % 2 == 1) {
-                        copyFile(files[0], files[1]);
-                    } else {
-                        copyFile(files[1], files[0]);
-                    }
-                    publishProgress(mProgressDialog.getMax());
-                    Log.d("Copy a file cost ", "((((( copyFile Cost "
-                            + (double) ((System.nanoTime() - start) / 1000000000.0) + " second. )))))");
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            return true;
-        }
-
-        @Override
-        protected void onPostExecute(Boolean success) {
-            mProgressDialog.dismiss();
-        }
-
-        private void copyFile(File source, File dest) throws IOException {
-            if (!dest.exists()) {
-                // dest.delete();
-                dest.createNewFile();
-            }
-            InputStream in = null;
-            OutputStream out = null;
-            long start;
-            long end;
-            long total;
-            long lenghtOfFile = source.length();
-            try {
-                in = new FileInputStream(source);
-                out = new FileOutputStream(dest);
-                byte[] buf = new byte[1024];
-                int len = 0;
-                total = 0;
-                start = System.nanoTime();
-                int index = 0;
-                while ((len = in.read(buf)) > 0) {
-                    total += len;
-                    out.write(buf, 0, len);
-                    if (index == 0 || index % 512 == 0) {
-                        end = System.nanoTime();
-                        speed = 1000000000 / (end - start);
-                        start = System.nanoTime();
-                        if (index == 0) {
-                            publishProgress(0);
-                        } else {
-                            publishProgress((int) (total * 100 / lenghtOfFile));
-                        }
-                    }
-                    index++;
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            } finally {
-                if (in != null) {
-                    in.close();
-                }
-                if (out != null) {
-                    out.close();
-                }
             }
         }
     }
