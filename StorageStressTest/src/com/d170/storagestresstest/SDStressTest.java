@@ -119,11 +119,11 @@ public class SDStressTest extends Activity {
                     updateComponentEnable(Constants.UI_INITIAL);
                     // send mail
                     Intent mailIntent = new Intent(Intent.ACTION_SENDTO);
-                    mailIntent.putExtra(Intent.EXTRA_EMAIL, Constants.MAIL_TO.split(";"));
-                    mailIntent.putExtra(Intent.EXTRA_CC, Constants.MAIL_CC.split(";"));
-                    mailIntent.putExtra(Intent.EXTRA_SUBJECT, "SD Strss Test Report");
-                    mailIntent.putExtra(Intent.EXTRA_TEXT, "Success!!");
                     if (mailIntent.resolveActivity(getPackageManager()) != null) {
+                        mailIntent.putExtra(Intent.EXTRA_EMAIL, Constants.MAIL_TO.split(";"));
+                        mailIntent.putExtra(Intent.EXTRA_CC, Constants.MAIL_CC.split(";"));
+                        mailIntent.putExtra(Intent.EXTRA_SUBJECT, "SD Strss Test Report");
+                        mailIntent.putExtra(Intent.EXTRA_TEXT, "Success!!");
                         startActivity(mailIntent);
                     }
                 }

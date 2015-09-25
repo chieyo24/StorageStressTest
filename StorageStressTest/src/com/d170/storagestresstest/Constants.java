@@ -30,4 +30,5 @@ public final class Constants {
     public static final String UI_STARTBUTTON_RESTART = "RESTART";
     public static final String UI_STOPBUTTON_STOP = "STOP";
 
+    public static final double CONSTANTS_SECONDTONANOTIME = 1000000000.0;
 }
