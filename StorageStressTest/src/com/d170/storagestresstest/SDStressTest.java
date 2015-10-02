@@ -1,10 +1,5 @@
 package com.d170.storagestresstest;
 
-import java.io.File;
-
-import br.com.thinkti.android.filechooser.FileChooser;
-import com.d170.storagestresstest.R;
-
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.BroadcastReceiver;
@@ -23,6 +18,11 @@ import android.widget.ProgressBar;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import br.com.thinkti.android.filechooser.FileChooser;
+import com.d170.storagestresstest.R;
+
+import java.io.File;
 
 public class SDStressTest extends Activity {
 
@@ -45,6 +45,7 @@ public class SDStressTest extends Activity {
 
     /**
      * show user a warning Toast message
+     * 
      * @param msg
      *            message
      */
@@ -156,28 +157,13 @@ public class SDStressTest extends Activity {
     }
 
     /**
-     * Progress Dialog Switch
-     */
-    public void switchProgressDialogEnable(View v) {
-        if (mProgressDialogSW.isChecked()) {
-            if (!mProgressDialog.isShowing()) {
-                mProgressDialog.show();
-            }
-        } else {
-            if (mProgressDialog.isShowing()) {
-                mProgressDialog.hide();
-            }
-        }
-    }
-
-    /**
      * Start Button Click
      */
     public void doStartProcess(View v) {
         if (mStartBt.getText().equals(Constants.UI_STARTBUTTON_PAUSE)) {
             mAppSettings.edit().putBoolean(Constants.PREFENCES_IS_PAUSE, true).commit();
             updateComponentEnable(Constants.UI_STARTBUTTON_PAUSE);
-            showToast("When current file is copyied finish,copy task will be pause.");
+            showToast("When current file is copyied finish, copy task will be pause.");
             return;
         } else if (mStartBt.getText().equals(Constants.UI_STARTBUTTON_RESTART)) {
             mAppSettings.edit().putBoolean(Constants.PREFENCES_IS_PAUSE, false).commit();
@@ -185,31 +171,45 @@ public class SDStressTest extends Activity {
             return;
         }
         File srcFile = new File(mSrcFileEdTt.getText().toString());
-        File dstFile = new File(mDestFileEdTt.getText().toString());
-        String executeCount = mExecutionCountEdTt.getText().toString();
         if (!srcFile.isFile()) {
             showToast("Please choose a file for source of copy task !");
-        } else if (dstFile.isDirectory()) {
+        }
+
+        String dstPath = mDestFileEdTt.getText().toString();
+        File dstFile = new File(dstPath);
+        if (dstPath.lastIndexOf("/") != -1) {
+            String dstFolderPath = dstPath.substring(0, dstPath.lastIndexOf("/"));
+            File dstFileFolder = new File(dstFolderPath);
+            if (!dstFileFolder.isDirectory() || dstFile.isDirectory()) {
+                showToast("Please choose a file for destination of copy task !");
+                return;
+            }
+        } else {
             showToast("Please choose a file for destination of copy task !");
-        } else if (executeCount.length() == 0) {
+            return;
+        }
+
+        String executeCount = mExecutionCountEdTt.getText().toString();
+        if (executeCount.length() == 0) {
             showToast("Please input the number of execute count !");
+            return;
         } else if (Integer.parseInt(executeCount) % 2 != 0) {
             showToast("The number of execution count shoule be even number,or the source file will be deleted.");
-        } else {
-            // Each start should initial progress dialog, or progress invalid.
-            createProgressDialog();
-            updateComponentEnable(Constants.UI_STARTBUTTON_START);
-            Intent mServiceIntent = new Intent(this, CopyService.class);
-            mServiceIntent.putExtra(Constants.INITIAL_SOURCE_FILE, srcFile);
-            mServiceIntent.putExtra(Constants.INITIAL_DESTINATION_FILE, dstFile);
-            mServiceIntent.putExtra(Constants.INITIAL_COPY_COUNT,
-                    Integer.parseInt(mExecutionCountEdTt.getText().toString()));
-            mServiceIntent.putExtra(Constants.INITIAL_PROGRESS_DIALOG_EABLE, mProgressDialogSW.isChecked());
-
-            mAppSettings.edit().putBoolean(Constants.PREFENCES_IS_PAUSE, false)
-                    .putBoolean(Constants.PREFENCES_IS_STOP, false).commit();
-            startService(mServiceIntent);
+            return;
         }
+        // Each start should initial progress dialog, or progress invalid.
+        createProgressDialog();
+        updateComponentEnable(Constants.UI_STARTBUTTON_START);
+        Intent mServiceIntent = new Intent(this, CopyService.class);
+        mServiceIntent.putExtra(Constants.INITIAL_SOURCE_FILE, srcFile);
+        mServiceIntent.putExtra(Constants.INITIAL_DESTINATION_FILE, dstFile);
+        mServiceIntent.putExtra(Constants.INITIAL_COPY_COUNT,
+                Integer.parseInt(mExecutionCountEdTt.getText().toString()));
+        mServiceIntent.putExtra(Constants.INITIAL_PROGRESS_DIALOG_EABLE, mProgressDialogSW.isChecked());
+
+        mAppSettings.edit().putBoolean(Constants.PREFENCES_IS_PAUSE, false)
+                .putBoolean(Constants.PREFENCES_IS_STOP, false).commit();
+        startService(mServiceIntent);
     }
 
     @Override
